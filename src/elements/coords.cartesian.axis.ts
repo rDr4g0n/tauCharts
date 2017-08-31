@@ -18,14 +18,22 @@ interface AxisConfig {
     tickFormat?: (x) => string;
     tickSize?: number;
     tickPadding?: number;
-    gridOnly?: boolean;
+    showTickLabels?: boolean;
+    style?: 'line' | 'alt';
+    chartPadding?: {
+        t: number;
+        r: number;
+        b: number;
+        l: number;
+    }
 }
 
 interface GridConfig {
     scale: ScaleFunction;
     scaleGuide: ScaleGuide;
-    ticksCount: number;
-    tickSize: number;
+    ticksCount?: number;
+    tickSize?: number;
+    style?: 'line' | 'alt';
 }
 
 type d3Selection = Selection<any, any, any, any>;
@@ -71,14 +79,17 @@ function createAxis(config: AxisConfig) {
     const {
         ticksCount,
         tickFormat,
-        tickSize,
         tickPadding,
-        gridOnly
+        tickSize,
+        showTickLabels,
+        style,
+        chartPadding,
     } = defaults(config, {
-            tickSize: 6,
-            tickPadding: 3,
-            gridOnly: false
-        });
+        tickSize: 6,
+        tickPadding: 3,
+        style: 'line',
+        chartPadding: {t: 0, r: 0, b: 0, l: 0},
+    });
 
     const isLinearScale = (scale.scaleType === 'linear');
     const isOrdinalScale = (scale.scaleType === 'ordinal' || scale.scaleType === 'period');
@@ -103,8 +114,16 @@ function createAxis(config: AxisConfig) {
             values = scale.domain();
         }
         if (scaleGuide.hideTicks) {
-            values = gridOnly ? values.filter((d => d == 0)) : [];
+            values = (!showTickLabels ? values.filter((d => d == 0)) : []);
         }
+
+        const getNextTick = (() => {
+            const tickIndices = values.reduce((map, t, i) => {
+                map[t] = i;
+                return map;
+            }, {});
+            return (d) => values[tickIndices[d] + 1];
+        })();
 
         const format = (tickFormat == null ? (scale.tickFormat ? scale.tickFormat(ticksCount) : identity) : tickFormat);
         const spacing = (Math.max(tickSize, 0) + tickPadding);
@@ -269,6 +288,62 @@ function createAxis(config: AxisConfig) {
                             .attr(`${x}1`, lx)
                             .attr(`${x}2`, lx);
                     }
+                });
+        }
+
+        function drawCells(ticks: TickDataBinding) {
+            const ly = (ko * tickSize);
+            const lx = (isOrdinalScale ? ((d) => (kh * scale.stepSize(d) / 2)) : null);
+            const tw = (isHorizontal ? 'width' : 'height');
+            const th = (isHorizontal ? 'height' : 'width');
+            const width: any = (isOrdinalScale ?
+                (d) => scale.stepSize(d) :
+                (d) => {
+                    const n = getNextTick(d);
+                    if (n == null) {
+                        return 0;
+                    }
+                    return Math.abs(position(n) - position(d));
+                });
+            // debugger;
+            const textPaddings = {
+                [Orient.top]: chartPadding.t,
+                [Orient.right]: chartPadding.r,
+                [Orient.bottom]: chartPadding.b,
+                [Orient.left]: chartPadding.l,
+            };
+            console.log(orient, textPaddings, values);
+            const height = (Math.abs(tickSize) + (showTickLabels ? textPaddings[orient] : 0));
+            const dx: any = (isOrdinalScale ? (d) => -scale.stepSize(d) / 2 : isHorizontal ? 0 : (d) => -width(d));
+            const dy: any = (isHorizontal || !showTickLabels ? 0 : -height);
+            const opacity = ((d, i) => values.length > 1 && i % 2 === 0 ? 1 : 0);
+
+            take(ticks)
+                .next(({tick, tickEnter}) => {
+                    const rect = tick.select('rect');
+                    const rectEnter = tickEnter.append('rect')
+                        .attr('fill', 'rgba(0, 0, 0, 0.04)')
+                        .attr(x, dx)
+                        .attr(y, dy)
+                        .attr('opacity', opacity)
+                        .attr(tw, width)
+                        .attr(th, height);
+
+                    return rect.merge(rectEnter);
+                })
+                .next((rect) => {
+                    if (transition) {
+                        return rect.transition(transition);
+                    }
+                    return rect;
+                })
+                .next((rect) => {
+                    rect
+                        .attr(x, dx)
+                        .attr(y, dy)
+                        .attr(tw, width)
+                        .attr(th, height)
+                        .attr('opacity', opacity);
                 });
         }
 
@@ -521,16 +596,23 @@ function createAxis(config: AxisConfig) {
                 .remove();
         }
 
-        if (!gridOnly) {
+        if (showTickLabels) {
             drawDomain();
         }
+
         const ticks = createTicks();
         updateTicks(ticks);
-        drawLines(ticks);
-        if (isOrdinalScale && gridOnly) { // Todo: Explicitly determine if grid 
+
+        if (style === 'alt') {
+            drawCells(ticks);
+        } else {
+            drawLines(ticks);
+        }
+        if (style === 'line' && !isOrdinalScale && !showTickLabels) { // Todo: Explicitly determine if grid 
             drawExtraOrdinalLine();
         }
-        if (!gridOnly) {
+
+        if (showTickLabels) {
             drawText(ticks);
             if (!labelGuide.hide) {
                 drawAxisLabel();
@@ -541,15 +623,15 @@ function createAxis(config: AxisConfig) {
 }
 
 export function cartesianAxis(config: AxisConfig) {
-    return createAxis(config);
+    return createAxis({
+        ...config,
+        showTickLabels: true
+    });
 }
 
 export function cartesianGrid(config: GridConfig) {
     return createAxis({
-        scale: config.scale,
-        scaleGuide: config.scaleGuide,
-        ticksCount: config.ticksCount,
-        tickSize: config.tickSize,
-        gridOnly: true
+        ...config,
+        showTickLabels: false
     });
 }

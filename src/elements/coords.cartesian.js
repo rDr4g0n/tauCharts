@@ -250,7 +250,9 @@ export class Cartesian extends Element {
             scale: scale.scaleObj,
             scaleGuide: scale.guide,
             ticksCount: (formatter ? calcTicks(size / scale.guide.density) : null),
-            tickFormat: (formatter || null)
+            tickFormat: (formatter || null),
+            style: 'line', // (scale.scaleType === 'ordinal' || scale.scaleType === 'period' ? 'alt' : 'line'),
+            chartPadding: this.config.guide.padding,
         });
 
         var animationSpeed = this.config.guide.animationSpeed;
@@ -294,6 +296,17 @@ export class Cartesian extends Element {
 
                 var animationSpeed = this.config.guide.animationSpeed;
 
+                const getGridStyle = (scale) => {
+                    if (
+                        (scale.scaleType === 'ordinal') ||
+                        (scale.scaleType === 'period') ||
+                        (scale.scaleType === 'time' && scale.guide.timeInterval)
+                    ) {
+                        return 'alt';
+                    }
+                    return 'line';
+                };
+
                 var linesOptions = (node.guide.showGridLines || '').toLowerCase();
                 if (linesOptions.length > 0) {
 
@@ -306,7 +319,8 @@ export class Cartesian extends Element {
                             scale: xScale.scaleObj,
                             scaleGuide: xScale.guide,
                             tickSize: height,
-                            ticksCount: (formatter ? calcTicks(width / xScale.guide.density) : null)
+                            ticksCount: (formatter ? calcTicks(width / xScale.guide.density) : null),
+                            style: getGridStyle(xScale),
                         });
 
                         var xGridLines = selectOrAppend(gridLines, 'g.grid-lines-x');
@@ -321,7 +335,8 @@ export class Cartesian extends Element {
                             scale: yScale.scaleObj,
                             scaleGuide: yScale.guide,
                             tickSize: -width,
-                            ticksCount: (formatter ? calcTicks(height / yScale.guide.density) : null)
+                            ticksCount: (formatter ? calcTicks(height / yScale.guide.density) : null),
+                            style: getGridStyle(yScale),
                         });
 
                         var yGridLines = selectOrAppend(gridLines, 'g.grid-lines-y');
