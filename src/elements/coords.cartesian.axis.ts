@@ -608,7 +608,7 @@ function createAxis(config: AxisConfig) {
         } else {
             drawLines(ticks);
         }
-        if (style === 'line' && !isOrdinalScale && !showTickLabels) { // Todo: Explicitly determine if grid 
+        if (style === 'line' && isOrdinalScale && !showTickLabels) { // Todo: Explicitly determine if grid 
             drawExtraOrdinalLine();
         }
 
